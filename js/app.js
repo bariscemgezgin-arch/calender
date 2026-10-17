@@ -17,7 +17,7 @@ const fmtTime = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getM
 let pushTimer;
 let syncMsg = '';
 async function doPush(manual) {
-  if (!Sync.syncBase(data.settings)) return;
+  if (!Sync.mode(data.settings)) return;
   data.settings.syncToken ||= Sync.randomToken();
   try {
     await Sync.push(data.settings, Sync.buildPayload(data.habits, data.logs, today()));
@@ -217,7 +217,9 @@ function settingsView() {
       <label class="btn file">Yedekten yükle<input type="file" id="import" accept="application/json" hidden></label>
       <p class="muted sm">Veriler bu cihazın tarayıcısında saklanır. Telefon değiştirirsen yedek al.</p></section>
     <section class="card"><h3>iPhone widget'ı</h3>
-      <label>Worker adresi<input id="syncUrl" value="${esc(data.settings.syncUrl || '')}" placeholder="https://dopamin.xxxx.workers.dev" autocomplete="off" autocapitalize="off"></label>
+      <label>GitHub özel deposu (kullanıcı/depo)<input id="ghRepo" value="${esc(data.settings.syncRepo || '')}" placeholder="bariscemgezgin-arch/dopamin-data" autocomplete="off" autocapitalize="off"></label>
+      <label>GitHub token (yalnızca o depoya yazma izni)<input id="ghToken" type="password" value="${esc(data.settings.syncGhToken || '')}" autocomplete="off"></label>
+      <label>— ya da Cloudflare Worker adresi<input id="syncUrl" value="${esc(data.settings.syncUrl || '')}" placeholder="https://dopamin.xxxx.workers.dev" autocomplete="off" autocapitalize="off"></label>
       <button class="btn" data-act="syncnow">Şimdi gönder</button>
       <button class="btn primary" data-act="copyscript">Scriptable kodunu kopyala</button>
       <p class="muted sm">${esc(syncMsg || 'Adresi gir; her tikten sonra özet otomatik gönderilir.')}</p>
@@ -370,11 +372,17 @@ const actions = {
   },
   syncnow: () => doPush(true),
   copyscript: async () => {
-    if (!Sync.syncBase(data.settings)) return toast('Önce Worker adresini gir');
+    const m = Sync.mode(data.settings);
+    if (!m) return toast('Önce GitHub deposu + token (ya da Worker adresi) gir');
     if (!scriptTpl) { prefetchScript(); return toast('Hazırlanıyor, bir kez daha bas'); }
     data.settings.syncToken ||= Sync.randomToken();
     persist();
-    const code = scriptTpl.replace('__SYNC_URL__', Sync.widgetUrl(data.settings)).replace('__APP_URL__', location.href.split('#')[0]);
+    const gh = m === 'github';
+    const code = scriptTpl
+      .replace('__SYNC_URL__', gh ? '' : Sync.widgetUrl(data.settings))
+      .replace('__GH_REPO__', gh ? Sync.ghRepo(data.settings) : '')
+      .replace('__GH_TOKEN__', gh ? data.settings.syncGhToken.trim() : '')
+      .replace('__APP_URL__', location.href.split('#')[0]);
     try {
       await navigator.clipboard.writeText(code);
       toast('Kopyalandı — Scriptable\'a yapıştır');
@@ -400,6 +408,11 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'clientId') { data.settings.clientId = e.target.value.trim(); persist(); }
+  if (e.target.id === 'ghRepo' || e.target.id === 'ghToken') {
+    data.settings.syncRepo = $('#ghRepo').value.trim();
+    data.settings.syncGhToken = $('#ghToken').value.trim();
+    persist();
+  }
   if (e.target.id === 'syncUrl') {
     data.settings.syncUrl = e.target.value.trim();
     data.settings.syncToken ||= Sync.randomToken();

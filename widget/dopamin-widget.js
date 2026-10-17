@@ -1,5 +1,7 @@
 // Dopamin Döngüsü — Scriptable widget. Uygulamadaki Ayarlar > "Scriptable kodunu kopyala" ile adresler otomatik doldurulur.
 const DATA_URL = '__SYNC_URL__';
+const GH_REPO = '__GH_REPO__';
+const GH_TOKEN = '__GH_TOKEN__';
 const APP_URL = '__APP_URL__';
 const C = { bg: '#0f1220', track: '#2a3052', green: '#39d98a', text: '#eef0fa', muted: '#8f96b8', accent: '#7c8cff' };
 const HEAT = { n: '#1d2240', '0': '#3a2430', '1': '#14532d', '2': '#1f8f4d', '3': '#2fbf71', '4': '#5cf0a6' };
@@ -8,7 +10,8 @@ async function load() {
   const fm = FileManager.local();
   const path = fm.joinPath(fm.cacheDirectory(), 'dopamin.json');
   try {
-    const req = new Request(DATA_URL);
+    const req = GH_REPO ? new Request('https://api.github.com/repos/' + GH_REPO + '/contents/dopamin.json') : new Request(DATA_URL);
+    if (GH_REPO) req.headers = { Authorization: 'Bearer ' + GH_TOKEN, Accept: 'application/vnd.github.raw+json' };
     req.timeoutInterval = 15;
     const j = await req.loadJSON();
     if (j && j.v === 1) {

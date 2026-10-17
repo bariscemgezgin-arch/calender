@@ -26,7 +26,16 @@ Telefonda kullanmak için HTTPS'te yayınla (ör. GitHub Pages) ve Chrome/Safari
 
 Erişim jetonu 1 saat geçerlidir ve sayfa yenilenince tekrar "Bağlan" gerekir (sunucusuz çalıştığı için).
 
-## iPhone ana ekran widget'ı (Scriptable + Cloudflare Worker)
+## iPhone ana ekran widget'ı — bilgisayarsız yol (Scriptable + özel GitHub deposu)
+Özet, GitHub'da **özel (private)** bir depodaki `dopamin.json` dosyasına yazılır; Scriptable aynı dosyayı okur. Kod editörü gerekmez, hepsi telefondan yapılır.
+1. github.com/new → depo adı `dopamin-data`, **Private**, *Add a README* işaretli → Create.
+2. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate: *Repository access: Only select repositories* → `dopamin-data`; *Permissions → Repository permissions → Contents: Read and write*. Token'ı kopyala.
+3. Uygulamada **Ayarlar → iPhone widget'ı**: depo (`kullanıcı/dopamin-data`) ve token'ı yapıştır, **Şimdi gönder**.
+4. **Scriptable kodunu kopyala** → Scriptable'da yeni script'e yapıştır → ana ekrana Scriptable widget'ı ekle, Script olarak onu seç.
+
+Token tarayıcıda (ve Scriptable betiğinde) saklanır; yalnızca o depoya erişir. Yedek dosyasına yazılmaz.
+
+## iPhone widget'ı — alternatif: Scriptable + Cloudflare Worker
 Tarayıcı uygulamaları widget yapamaz; bu yüzden uygulama her tikten sonra küçük bir özeti (görevler, XP, streak, ısı haritası) kendi Cloudflare Worker'ına yollar, iPhone'daki **Scriptable** uygulaması bunu okuyup widget'ı çizer. Hepsi ücretsiz.
 1. **Worker**: Cloudflare Dashboard → *Workers & Pages* → *Create* → *Hello World* → Deploy → *Edit code*; `worker/worker.js` içeriğini yapıştırıp Deploy.
 2. **KV**: *Storage & Databases → KV → Create namespace* (`dopamin`). Worker'ın *Settings → Bindings → Add → KV namespace*; değişken adı **KV**, namespace'i seç.

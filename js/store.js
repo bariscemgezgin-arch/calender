@@ -16,7 +16,7 @@ export function save(data) {
 export const uid = () => Math.random().toString(36).slice(2, 9);
 
 export function exportJson(data) {
-  return JSON.stringify({ ...data, settings: { ...data.settings, clientId: '', syncToken: '' } }, null, 2);
+  return JSON.stringify({ ...data, settings: { ...data.settings, clientId: '', syncToken: '', syncGhToken: '' } }, null, 2);
 }
 export function importJson(text) {
   const d = JSON.parse(text);

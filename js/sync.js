@@ -44,9 +44,48 @@ export function randomToken() {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export async function push(settings, payload) {
-  if (!syncBase(settings) || !settings.syncToken) return false;
-  const r = await fetch(widgetUrl(settings), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true });
+export const ghRepo = (s) => (s.syncRepo || '').trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+// 'github': özel depoya dosya yaz (Worker gerekmez); 'worker': Cloudflare Worker.
+export const mode = (s) => (ghRepo(s) && (s.syncGhToken || '').trim() ? 'github' : syncBase(s) ? 'worker' : '');
+
+const b64 = (str) => {
+  let bin = '';
+  for (const b of new TextEncoder().encode(str)) bin += String.fromCharCode(b);
+  return btoa(bin);
+};
+let queue = Promise.resolve();
+
+async function pushGithub(s, payload) {
+  const api = `https://api.github.com/repos/${ghRepo(s)}/contents/dopamin.json`;
+  const h = { Authorization: `Bearer ${s.syncGhToken.trim()}`, Accept: 'application/vnd.github+json' };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const g = await fetch(api, { headers: h, cache: 'no-store' });
+    if (g.status === 401 || g.status === 403) throw new Error('GitHub token geçersiz ya da yetkisiz');
+    const sha = g.ok ? (await g.json()).sha : undefined;
+    const r = await fetch(api, {
+      method: 'PUT',
+      headers: { ...h, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'sync', content: b64(JSON.stringify(payload)), sha }),
+    });
+    if (r.ok) return true;
+    if (r.status === 409 || r.status === 422) continue; // sha eskidi, tekrar dene
+    if (r.status === 404) throw new Error('GitHub deposu bulunamadı (ad ya da token izni?)');
+    throw new Error(`GitHub eşitleme hatası (${r.status})`);
+  }
+  throw new Error('GitHub eşitleme çakıştı, tekrar dene');
+}
+
+async function pushWorker(s, payload) {
+  const r = await fetch(widgetUrl(s), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true });
   if (!r.ok) throw new Error(`Widget eşitleme hatası (${r.status})`);
   return true;
+}
+
+export function push(settings, payload) {
+  const m = mode(settings);
+  if (!m) return Promise.resolve(false);
+  if (m === 'worker' && !settings.syncToken) return Promise.resolve(false);
+  const run = () => (m === 'github' ? pushGithub(settings, payload) : pushWorker(settings, payload));
+  queue = queue.then(run, run);
+  return queue;
 }
