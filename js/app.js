@@ -2,6 +2,7 @@ import * as S from './streak.js';
 import { load, save, uid, exportJson, importJson } from './store.js';
 import * as G from './gcal.js';
 import { parsePlan } from './plan.js';
+import * as Sync from './sync.js';
 
 let data = load();
 const ui = { tab: 'today', date: S.dateKey(new Date()), todayKey: S.dateKey(new Date()), pick: null, weekOff: 0, events: [], evKey: '', evErr: '', plan: '', preview: null };
@@ -13,7 +14,21 @@ const DAYS = [['Pzt', 1], ['Sal', 2], ['Çar', 3], ['Per', 4], ['Cum', 5], ['Cmt
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const fmtDate = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'][d.getDay()]}`;
 const fmtTime = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-const persist = () => save(data);
+let pushTimer;
+let syncMsg = '';
+async function doPush(manual) {
+  if (!Sync.syncBase(data.settings)) return;
+  data.settings.syncToken ||= Sync.randomToken();
+  try {
+    await Sync.push(data.settings, Sync.buildPayload(data.habits, data.logs, today()));
+    syncMsg = 'Son gönderim: ' + fmtTime(new Date());
+  } catch (e) {
+    syncMsg = e.message === 'Failed to fetch' ? 'Widget servisine ulaşılamadı' : e.message;
+  }
+  if (manual) { toast(syncMsg); render(); }
+}
+const schedulePush = () => { clearTimeout(pushTimer); pushTimer = setTimeout(doPush, 1500); };
+const persist = () => { save(data); schedulePush(); };
 
 function toast(msg) {
   const t = $('#toast');
@@ -184,7 +199,13 @@ function calendarView() {
 }
 
 // ---------- Ayarlar ----------
+let scriptTpl = '';
+function prefetchScript() {
+  if (scriptTpl) return;
+  fetch('widget/dopamin-widget.js').then((r) => r.text()).then((t) => { scriptTpl = t; }).catch(() => {});
+}
 function settingsView() {
+  prefetchScript();
   return `
     <header class="top"><div><h1>Ayarlar</h1></div></header>
     <section class="card"><h3>Google Takvim</h3>
@@ -195,8 +216,12 @@ function settingsView() {
       <button class="btn" data-act="export">Yedek indir (JSON)</button>
       <label class="btn file">Yedekten yükle<input type="file" id="import" accept="application/json" hidden></label>
       <p class="muted sm">Veriler bu cihazın tarayıcısında saklanır. Telefon değiştirirsen yedek al.</p></section>
-    <section class="card"><h3>Widget</h3>
-      <p class="muted sm">Uygulamayı ana ekrana ekle. Mini görünüm için: <a href="#widget">#widget</a>. Rozet sayısı kalan görev sayısını gösterir.</p></section>`;
+    <section class="card"><h3>iPhone widget'ı</h3>
+      <label>Worker adresi<input id="syncUrl" value="${esc(data.settings.syncUrl || '')}" placeholder="https://dopamin.xxxx.workers.dev" autocomplete="off" autocapitalize="off"></label>
+      <button class="btn" data-act="syncnow">Şimdi gönder</button>
+      <button class="btn primary" data-act="copyscript">Scriptable kodunu kopyala</button>
+      <p class="muted sm">${esc(syncMsg || 'Adresi gir; her tikten sonra özet otomatik gönderilir.')}</p>
+      <p class="muted sm">Kurulum adımları README'de. Mini görünüm: <a href="#widget">#widget</a>. Ana ekran ikonundaki rozet kalan görev sayısını gösterir.</p></section>`;
 }
 
 // ---------- Widget (kompakt görünüm) ----------
@@ -343,6 +368,24 @@ const actions = {
     } catch (e) { toast(`${n} eklendi, sonra hata: ${e.message}`); }
     render();
   },
+  syncnow: () => doPush(true),
+  copyscript: async () => {
+    if (!Sync.syncBase(data.settings)) return toast('Önce Worker adresini gir');
+    if (!scriptTpl) { prefetchScript(); return toast('Hazırlanıyor, bir kez daha bas'); }
+    data.settings.syncToken ||= Sync.randomToken();
+    persist();
+    const code = scriptTpl.replace('__SYNC_URL__', Sync.widgetUrl(data.settings)).replace('__APP_URL__', location.href.split('#')[0]);
+    try {
+      await navigator.clipboard.writeText(code);
+      toast('Kopyalandı — Scriptable\'a yapıştır');
+    } catch {
+      const dlg = $('#dlg');
+      dlg.innerHTML = '<h3>Kodu kopyala</h3><textarea rows="10" readonly id="codeBox"></textarea><div class="actions"><button class="btn" data-act="close">Kapat</button></div>';
+      dlg.querySelector('#codeBox').value = code;
+      dlg.showModal();
+      dlg.querySelector('#codeBox').select();
+    }
+  },
   export: () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([exportJson(data)], { type: 'application/json' }));
@@ -357,6 +400,11 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'clientId') { data.settings.clientId = e.target.value.trim(); persist(); }
+  if (e.target.id === 'syncUrl') {
+    data.settings.syncUrl = e.target.value.trim();
+    data.settings.syncToken ||= Sync.randomToken();
+    persist();
+  }
   if (e.target.id === 'import' && e.target.files[0]) {
     try {
       data = importJson(await e.target.files[0].text());
@@ -371,7 +419,9 @@ document.addEventListener('visibilitychange', () => {
   if (ui.date === ui.todayKey) ui.date = now; // gece yarısı geçtiyse yeni güne geç
   ui.todayKey = now;
   render();
+  schedulePush();
 });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
+schedulePush();

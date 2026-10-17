@@ -26,6 +26,16 @@ Telefonda kullanmak için HTTPS'te yayınla (ör. GitHub Pages) ve Chrome/Safari
 
 Erişim jetonu 1 saat geçerlidir ve sayfa yenilenince tekrar "Bağlan" gerekir (sunucusuz çalıştığı için).
 
+## iPhone ana ekran widget'ı (Scriptable + Cloudflare Worker)
+Tarayıcı uygulamaları widget yapamaz; bu yüzden uygulama her tikten sonra küçük bir özeti (görevler, XP, streak, ısı haritası) kendi Cloudflare Worker'ına yollar, iPhone'daki **Scriptable** uygulaması bunu okuyup widget'ı çizer. Hepsi ücretsiz.
+1. **Worker**: Cloudflare Dashboard → *Workers & Pages* → *Create* → *Hello World* → Deploy → *Edit code*; `worker/worker.js` içeriğini yapıştırıp Deploy.
+2. **KV**: *Storage & Databases → KV → Create namespace* (`dopamin`). Worker'ın *Settings → Bindings → Add → KV namespace*; değişken adı **KV**, namespace'i seç.
+3. Worker adresini (`https://….workers.dev`) uygulamada **Ayarlar → iPhone widget'ı → Worker adresi**'ne yapıştır, **Şimdi gönder**'e bas.
+4. iPhone'a App Store'dan **Scriptable** kur. **Ayarlar → Scriptable kodunu kopyala**'ya bas, Scriptable'da yeni script oluşturup yapıştır.
+5. Ana ekrana Scriptable widget'ı ekle (Küçük ya da Orta), widget'a uzun bas → *Edit Widget* → Script: yeni script'i seç.
+
+Gizli adres (`/s/<rastgele anahtar>`) erişim anahtarıdır; adresi kimseyle paylaşma. Yedek dosyasına anahtar yazılmaz. iOS widget'ı kendi takvimine göre yeniler (genelde 15–30 dk), bu yüzden tik atınca anında değişmeyebilir. Yeni güne uyanınca uygulamayı açmasan bile widget o günün görev listesini gösterir.
+
 ## Bilinen sınırlar
-- Gerçek bir Android/iOS **ana ekran widget'ı** PWA ile yapılamaz. Şimdilik: ana ekran ikonu + rozet + `#widget` mini ekranı. Gerçek widget için uygulamanın Capacitor/native sarmalayıcıyla paketlenmesi gerekir.
+- Widget Scriptable üzerinden çalışır (gerçek bir iOS uygulaması değil); yenileme sıklığını iOS belirler.
 - Hatırlatma bildirimi yok (sunucusuz web uygulaması güvenilir zamanlı bildirim gönderemez).

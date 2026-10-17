@@ -1,5 +1,5 @@
-const CACHE = 'dopamin-v1';
-const SHELL = ['./', 'index.html', 'css/style.css', 'js/app.js', 'js/streak.js', 'js/store.js', 'js/gcal.js', 'js/plan.js', 'manifest.webmanifest', 'icons/icon.svg'];
+const CACHE = 'dopamin-v2';
+const SHELL = ['./', 'index.html', 'css/style.css', 'js/app.js', 'js/streak.js', 'js/store.js', 'js/gcal.js', 'js/plan.js', 'js/sync.js', 'widget/dopamin-widget.js', 'manifest.webmanifest', 'icons/icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

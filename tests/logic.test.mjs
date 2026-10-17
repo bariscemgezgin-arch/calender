@@ -90,3 +90,18 @@ test('cumartesi/cuma ve pazar/pazartesi karışmaz', () => {
   const { events } = parsePlan('Cumartesi 10:00 A\nCuma 11:00 B\nPazar 12:00 C', parseKey('2026-10-19'));
   assert.deepEqual(events.map((e) => e.date), ['2026-10-24', '2026-10-23', '2026-10-25']);
 });
+
+test('widget özeti', async () => {
+  const { buildPayload } = await import('../js/sync.js');
+  const hs = [habit({ id: 'a', name: 'Yatak', time: '07:10', emoji: '🛏️' }), habit({ id: 'b', name: 'Uyan', time: '07:00' })];
+  const today = parseKey('2026-10-07');
+  const logs = { '2026-10-07': { b: 'done' } };
+  const p = buildPayload(hs, logs, today);
+  assert.equal(p.date, '2026-10-07');
+  assert.deepEqual(p.items.map((i) => [i.n, i.s]), [['Uyan', 'done'], ['Yatak', 'pending']]);
+  assert.equal(p.heat.length, 70);
+  assert.equal(p.heat.at(-1 - 4 + 0) !== undefined, true);
+  assert.equal(Object.keys(p.next).length, 7);
+  assert.equal(p.next['2026-10-08'].length, 2);
+  assert.ok(p.streak && p.streak.n >= 1);
+});
