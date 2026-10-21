@@ -1,12 +1,12 @@
 # Ergofit Çocuk Takibi
 
-Ergoterapistlerin çocuk bilgilerini, "şu an çalışılanları", aileye özet ve seans notlarını ortak tuttuğu uygulama. Telefona PWA olarak yüklenir. Değişiklikler anlık olarak herkese yansır; kim, ne zaman güncelledi görünür.
+Ergoterapistlerin çocuk bilgilerini, "şu an çalışılanları", seans notlarını ve notlardan yapay zekanın hazırladığı aileye özeti ortak tuttuğu uygulama. Telefona PWA olarak yüklenir. Değişiklikler anlık olarak herkese yansır; kim, ne zaman güncelledi görünür.
 
 - **Giriş**: Google hesabı. Yalnızca yöneticinin *Yönetim* ekranında tanımladığı e-postalar girebilir.
 - **Roller**: Yönetici (her şey, kişi/çocuk silme), Düzenleyici (not, çalışma, çocuk ekleme/düzenleme), İzleyici (salt okunur).
-- **Çocuk sayfası**: Şu an çalışılanlar (tikle "ulaşıldı"), aileye kısa özet, tarih/yazar damgalı seans notları.
+- **Çocuk sayfası**: Şu an çalışılanlar (tikle "ulaşıldı"), tarih/yazar damgalı seans notları ve **aileye kısa özet**. Özeti kimse elle yazmaz; "Özeti yenile" düğmesine basınca yapay zeka (Claude) notlardan üretir. Yeni not eklendikten sonra özet eskiyse uyarı çıkar.
 - **Liste**: arama, "Benim çocuklarım", başkası son 48 saatte güncellediyse rozet.
-- **İçe aktarma**: Yönetim → Excel'den yapıştır veya CSV seç.
+- **İçe aktarma**: Yönetim → .xlsx/CSV seç veya yapıştır. Yalnızca ad ve doğum tarihi (varsa terapist, çalışılan) okunur; TC, telefon, veli bilgisi okunmaz.
 - **Çevrimdışı**: son görülen veri cihazda önbelleklenir; bağlantı gelince eşitlenir.
 
 ## Denemek (kurulumsuz)
@@ -27,7 +27,23 @@ node --test tests/csv.test.mjs
 
 > `apiKey` gizli bir anahtar değildir; güvenlik `firestore.rules` ile sağlanır. Kuralları yayınlamadan gerçek veri girme.
 
+## Yapay zeka özeti kurulumu (Cloud Functions)
+Anahtar tarayıcıda değil sunucuda durur. Bunun için Firebase projesini **Blaze (kullandıkça öde)** planına al; bu kullanımda maliyet genelde çok düşüktür. Bilgisayarda Node 20 ve `npm i -g firebase-tools` gerekir:
+```
+cd ergofit
+firebase login
+firebase use --add                      # projeni seç
+firebase functions:secrets:set ANTHROPIC_API_KEY   # console.anthropic.com'dan aldığın anahtar
+(cd functions && npm install)
+firebase deploy --only functions,firestore:rules
+```
+- Fonksiyon `europe-west1`'de çalışır; model varsayılan `claude-sonnet-5-5` (`SUMMARY_MODEL` ile değiştirilebilir).
+- **Yapay zekaya giden veri**: yaş, çalışma listesi ve seans notları. Çocuğun adı, telefon, e-posta ve uzun rakam dizileri gönderilmez; not metninde çocuğun adı geçiyorsa "çocuk" ile değiştirilir. Veli bilgisi uygulamada hiç tutulmaz.
+- Özet alanlarını yalnızca sunucu yazar; `firestore.rules` istemciden değiştirmeyi engeller.
+- Yönetici e-postası `functions/index.js` içinde de var (`ADMIN_EMAIL`); rules ve config ile aynı olmalı.
+
 ## Bilinen sınırlar
-- Aynı alanı iki kişi aynı anda düzenlerse son kaydeden kazanır (çalışmalar ve notlar ayrı kayıt olduğu için çakışmaz; yalnızca "aileye özet" metni ortaktır).
+- Özet yapay zeka üretimidir; hata yapabilir, notlarda olmayanı yazmaması istenir ama aileye iletmeden önce okunmalı.
+- Aynı alanı iki kişi aynı anda düzenlerse son kaydeden kazanır (çalışmalar ve notlar ayrı kayıt olduğu için çakışmaz).
 - Üyeler bir Google hesabına sahip olmalı.
 - Çocuk verisi sağlık verisi sayılır (KVKK): yalnızca gerekli bilgileri gir, Firestore bölgesini ve erişim listesini bilinçli seç.

@@ -7,6 +7,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, deleteField,
   onSnapshot, query, orderBy, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const app = initializeApp(firebaseConfig);
@@ -15,10 +16,11 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 
+const fns = getFunctions(app, 'europe-west1');
 const ms = t => (t && t.toMillis ? t.toMillis() : null);
 const clean = (d, extra) => {
   const o = { ...d.data(), id: d.id, ...extra };
-  for (const k of ['updatedAt', 'createdAt', 'editedAt']) if (k in o) o[k] = ms(o[k]);
+  for (const k of ['updatedAt', 'createdAt', 'editedAt', 'summaryAt']) if (k in o) o[k] = ms(o[k]);
   return o;
 };
 const stamp = () => {
@@ -82,6 +84,11 @@ export const backend = {
       }
       await batch.commit();
     }
+  },
+
+  async generateSummary(childId) {
+    try { await httpsCallable(fns, 'generateSummary')({ childId }); }
+    catch (e) { throw Object.assign(new Error(e.message), { code: e.code }); }
   },
 
   watchNotes(childId, cb, err) {

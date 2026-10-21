@@ -1,5 +1,5 @@
 import { firebaseConfig, bootstrapAdmin } from './firebase-config.js';
-import { parseTable, mapChildren } from './csv.js';
+import { parseTable, mapChildren, keepColumns } from './csv.js';
 
 const configured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 const demo = !configured || new URLSearchParams(location.search).has('demo');
@@ -210,10 +210,13 @@ function renderChild(id) {
       ${ed ? `<form class="row" id="focusForm" style="margin-top:10px"><input type="text" name="t" class="grow" placeholder="Yeni çalışma / hedef ekle" maxlength="200" required aria-label="Yeni çalışma"><button class="btn">Ekle</button></form>` : ''}
     </section>
 
-    <section class="card"><h2><span class="dot" style="background:var(--blue)"></span>Aileye kısa özet</h2>
-      <p class="hint">Aileyle konuşacak kişinin okuyacağı güncel durum.</p>
-      <textarea id="summary" ${ed ? '' : 'readonly'} maxlength="2000" placeholder="Örn. Bu hafta makas çalıştık…"></textarea>
-      <div class="saved" id="saved"></div>
+    <section class="card"><h2><span class="dot" style="background:var(--blue)"></span>Aileye kısa özet <span class="badge blue">Yapay zeka</span></h2>
+      <p class="hint">Seans notlarından yapay zeka hazırlar; elle yazılmaz. Aileye iletmeden önce göz at.</p>
+      <div class="summary" id="summary"></div>
+      <div class="row" style="margin-top:10px">
+        ${ed ? '<button class="btn small" id="sumBtn" data-act="summarize">Özeti yenile</button>' : ''}
+        <span class="saved grow" id="saved"></span>
+      </div>
     </section>
 
     <section class="card"><h2><span class="dot" style="background:var(--lime)"></span>Seans notları</h2>
@@ -222,11 +225,6 @@ function renderChild(id) {
       <ul class="notes" id="notes"></ul>
     </section>`, { title: c.name, back: true });
 
-  const sum = document.getElementById('summary');
-  sum.addEventListener('blur', () => {
-    const cur = S.children.find(x => x.id === id);
-    if (ed && cur && sum.value !== (cur.summary || '')) run(() => backend.updateChild(id, { summary: sum.value }), 'Özet kaydedildi');
-  });
   document.getElementById('focusForm')?.addEventListener('submit', e => {
     e.preventDefault();
     const t = e.target.t.value.trim(); if (!t) return;
@@ -259,13 +257,22 @@ function updateChild(id) {
       <span class="txt">${esc(f.text)}</span>
       ${ed ? `<button class="iconbtn" data-rmfocus="${esc(f.id)}" aria-label="Sil">✕</button>` : ''}
     </li>`).join('') || '<li class="hint" style="background:none">Henüz bir çalışma eklenmemiş.</li>';
-  const sum = document.getElementById('summary');
-  if (document.activeElement !== sum) sum.value = c.summary || '';
-  document.getElementById('saved').textContent = c.updatedAt ? `Son güncelleme: ${c.updatedByName || ''} · ${fmt(c.updatedAt)}` : '';
+  renderSummary(c);
+}
+function renderSummary(c) {
+  const box = document.getElementById('summary'), info = document.getElementById('saved');
+  if (!box) return;
+  box.textContent = c.summary || 'Henüz özet hazırlanmadı. Not ekledikten sonra "Özeti yenile"ye bas.';
+  box.classList.toggle('empty-sum', !c.summary);
+  const latest = Math.max(0, ...S.notes.map(n => Math.max(n.createdAt || 0, n.editedAt || 0)));
+  const stale = c.summary && c.summaryAt && latest > c.summaryAt;
+  info.innerHTML = c.summaryAt ? `Hazırlanma: ${esc(fmt(c.summaryAt))}${stale ? ' · <b style="color:var(--red)">Yeni notlar var, özeti yenile</b>' : ''}` : '';
 }
 function updateNotes(id) {
   const ul = document.getElementById('notes');
   if (!ul || S.notesFor !== id) return;
+  const c = S.children.find(x => x.id === id);
+  if (c) renderSummary(c);
   ul.innerHTML = S.notes.map(n => `
     <li class="note"><div class="who">${esc(n.authorName)} · ${fmt(n.createdAt)}${n.editedAt ? ` · düzenledi: ${esc(n.editedByName || '')}` : ''}</div>
       <div class="body">${esc(n.text)}</div>
@@ -290,7 +297,7 @@ function childDialog(c) {
       <button type="button" class="btn ghost" data-cancel>Vazgeç</button><button class="btn">Kaydet</button>
     </div>`, async f => {
     const data = { name: f.name.trim(), birth: f.birth || '', therapistEmail: f.therapistEmail || '', status: f.status };
-    return c ? run(() => backend.updateChild(c.id, data), 'Kaydedildi') : run(() => backend.createChild({ ...data, summary: '' }), 'Çocuk eklendi');
+    return c ? run(() => backend.updateChild(c.id, data), 'Kaydedildi') : run(() => backend.createChild(data), 'Çocuk eklendi');
   });
   dlg.querySelector('[data-del]')?.addEventListener('click', async () => {
     if (!confirm(`${c.name} ve tüm notları kalıcı olarak silinsin mi? Geri alınamaz.`)) return;
@@ -314,8 +321,8 @@ function renderAdmin(soft) {
           <button class="btn">Ekle</button>
         </form></section>
       <section class="card"><h2>Çocuk listesini içe aktar</h2>
-        <p class="hint">Excel'den kopyalayıp yapıştır ya da CSV seç. İlk satır başlık olabilir: <i>Ad Soyad, Doğum Tarihi, Terapist, Çalışılan, Özet</i>. Yalnızca ad zorunlu. Terapist sütunu, yukarıdaki kişilerin adı veya e-postasıyla eşleşir.</p>
-        <input type="file" id="csvFile" accept=".csv,.txt,.tsv" aria-label="CSV dosyası">
+        <p class="hint">Excel dosyası (.xlsx) veya CSV seç, ya da Excel'den kopyalayıp yapıştır. İlk satır başlık olabilir: <i>Ad Soyad, Doğum Tarihi, Terapist, Çalışılan</i>. Yalnızca ad zorunlu; TC, telefon, veli gibi diğer sütunlar okunmaz. Terapist sütunu, yukarıdaki kişilerin adı veya e-postasıyla eşleşir.</p>
+        <input type="file" id="csvFile" accept=".xlsx,.csv,.txt,.tsv" aria-label="Excel veya CSV dosyası">
         <textarea id="csvText" placeholder="Listeyi buraya yapıştır…" style="margin-top:8px"></textarea>
         <div class="row" style="margin-top:8px"><button class="btn ghost" id="csvPreview">Önizle</button><button class="btn" id="csvGo" disabled>İçe aktar</button></div>
         <div id="csvOut"></div></section>`, { title: 'Yönetim', back: true });
@@ -325,7 +332,9 @@ function renderAdmin(soft) {
       run(() => backend.setMember(email, { name: f.name.value.trim(), role: f.role.value }), 'Eklendi').then(ok => ok && f.reset());
     });
     document.getElementById('csvFile').addEventListener('change', async e => {
-      const file = e.target.files[0]; if (file) document.getElementById('csvText').value = await file.text();
+      const file = e.target.files[0]; if (!file) return;
+      try { document.getElementById('csvText').value = /\.xlsx?$/i.test(file.name) ? await xlsxToText(file) : await file.text(); }
+      catch (err) { toast('Dosya okunamadı: ' + err.message); }
     });
     document.getElementById('csvPreview').addEventListener('click', previewImport);
     document.getElementById('csvGo').addEventListener('click', runImport);
@@ -336,6 +345,20 @@ function renderAdmin(soft) {
       ${m.id !== S.user.email ? `<button class="btn danger small" data-rmmember="${esc(m.id)}">Kaldır</button>` : ''}
     </li>`).join('');
 }
+async function xlsxToText(file) {
+  if (!window.XLSX) {
+    await new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      sc.onload = ok; sc.onerror = () => fail(new Error('Excel okuyucu yüklenemedi (bağlantını kontrol et)'));
+      document.head.appendChild(sc);
+    });
+  }
+  const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+  const rows = raw.map(r => r.map(v => v instanceof Date ? new Date(v.getTime() + 12 * 3600e3).toISOString().slice(0, 10) : String(v).replace(/[\t\r\n]+/g, ' ').trim()));
+  return keepColumns(rows).map(r => r.join('\t')).join('\n');
+}
 function previewImport() {
   const { children, skipped, hasHeader } = mapChildren(parseTable(document.getElementById('csvText').value));
   const emailOf = raw => {
@@ -344,7 +367,7 @@ function previewImport() {
     return S.members.find(m => tr(m.id) === t || tr(m.name) === t)?.id || '';
   };
   importDraft = children.map(c => ({
-    name: c.name, birth: c.birth, therapistEmail: emailOf(c.therapist), status: 'active', summary: c.summary,
+    name: c.name, birth: c.birth, therapistEmail: emailOf(c.therapist), status: 'active',
     focus: Object.fromEntries(c.focus.map((text, i) => [rid() + i, { text, achieved: false, order: Date.now() + i }])),
     _therapistRaw: c.therapist
   }));
@@ -378,6 +401,11 @@ document.addEventListener('click', async e => {
   else if (d.act === 'back') { location.hash = '#/'; }
   else if (d.act === 'signin') {
     try { await backend.signIn(); } catch (err) { const x = document.getElementById('loginErr'); if (x) x.textContent = 'Giriş yapılamadı: ' + err.message; }
+  }
+  else if (d.act === 'summarize') {
+    const btn = el; btn.disabled = true; btn.textContent = 'Hazırlanıyor…';
+    await run(() => backend.generateSummary(id), 'Özet hazırlandı');
+    btn.disabled = false; btn.textContent = 'Özeti yenile';
   }
   else if (d.act === 'signout') backend.signOut();
   else if (d.act === 'addchild') childDialog(null);

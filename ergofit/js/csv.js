@@ -31,7 +31,7 @@ const HEADERS = {
   birth: ['dogum', 'doğum', 'dogumtarihi', 'doğumtarihi', 'birth', 'birthdate'],
   therapist: ['terapist', 'ergoterapist', 'sorumlu', 'therapist'],
   focus: ['calisilan', 'çalışılan', 'hedef', 'hedefler', 'calisilanlar', 'çalışılanlar', 'focus'],
-  summary: ['ozet', 'özet', 'not', 'notlar', 'aciklama', 'açıklama', 'summary']
+  summary: ['ozet', 'özet', 'summary']
 };
 
 export function parseDate(s) {
@@ -72,4 +72,12 @@ export function mapChildren(rows) {
     });
   });
   return { children, skipped, hasHeader };
+}
+
+// Yalnızca tanınan sütunları (ad, doğum, terapist, çalışılan) bırakır; TC, telefon, veli gibi sütunlar hiç okunmaz.
+export function keepColumns(rows) {
+  if (!rows.length) return rows;
+  const first = rows[0].map(norm);
+  const keep = first.map((h, i) => ['name', 'birth', 'therapist', 'focus'].some(k => HEADERS[k].map(norm).includes(h)) ? i : -1).filter(i => i >= 0);
+  return keep.length ? rows.map(r => keep.map(i => r[i] ?? '')) : rows;
 }

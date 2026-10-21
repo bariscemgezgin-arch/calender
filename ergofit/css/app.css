@@ -128,3 +128,6 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 }
 #toast.show { transform: translate(-50%, 0); opacity: 1; }
 @media print { .top, .btn, .tools, #toast { display: none; } }
+
+.summary { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--blue-soft); border-radius: 12px; padding: 12px; }
+.summary.empty-sum { color: var(--muted); background: var(--bg); border: 1px dashed var(--line); }

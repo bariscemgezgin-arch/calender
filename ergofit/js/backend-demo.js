@@ -15,9 +15,9 @@ const state = {
     { id: 'mehmet@ergofit.test', name: 'Mehmet (demo)', role: 'editor' }
   ],
   children: [
-    mk(1, { name: 'Ada Demo', birth: '2019-03-05' }, 'ayse@ergofit.test', [['Kalem tutma', false], ['Makasla düz çizgi kesme', false], ['Düğme ilikleme', true]], 'Bu hafta makas çalıştık, düz çizgiyi kesmeye başladı. Evde plastilinle top yapma oyunu önerilebilir.'),
+    mk(1, { name: 'Ada Demo', birth: '2019-03-05' }, 'ayse@ergofit.test', [['Kalem tutma', false], ['Makasla düz çizgi kesme', false], ['Düğme ilikleme', true]], ''),
     mk(2, { name: 'Bora Demo', birth: '2020-11-20' }, 'mehmet@ergofit.test', [['Denge tahtasında yürüme', false], ['Duyusal diyet: fırça uygulaması', false]], ''),
-    mk(3, { name: 'Cem Demo', birth: '2017-07-14' }, 'ayse@ergofit.test', [['Yazı yazarken oturuş', false]], 'Oturuş düzeni iyileşti.')
+    mk(3, { name: 'Cem Demo', birth: '2017-07-14' }, 'ayse@ergofit.test', [['Yazı yazarken oturuş', false]], '')
   ],
   notes: {
     c1: [{ id: 'n1', text: 'Makasla 5 dakika çalıştı, destek istemeden 3 çizgi kesti.', authorEmail: 'ayse@ergofit.test', authorName: 'Ayşe (demo)', createdAt: now - 2 * 864e5 }]
@@ -66,6 +66,15 @@ export const backend = {
   async deleteChild(id) { state.children = state.children.filter(c => c.id !== id); fire('children'); },
   async importChildren(list) {
     list.forEach(c => state.children.push({ id: 'c' + ++uid, createdAt: Date.now(), ...c, ...stamp() }));
+    fire('children');
+  },
+  async generateSummary(childId) {
+    await new Promise(r => setTimeout(r, 600));
+    const c = state.children.find(x => x.id === childId);
+    const notes = state.notes[childId] || [];
+    const open = Object.values(c.focus || {}).filter(f => !f.achieved).map(f => f.text.toLowerCase());
+    c.summary = `[Demo özeti] Şu an ${open.join(', ') || 'belirli bir hedef'} üzerinde çalışıyoruz. ${notes.length} seans notuna göre çocuğunuz çalışmalara katılıyor. Gerçek kullanımda bu metni yapay zeka notlardan üretir.`;
+    c.summaryAt = Date.now(); c.summaryNoteCount = notes.length;
     fire('children');
   },
   watchNotes(childId, cb) {
