@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // İlk yönetici: js/firebase-config.js içindeki bootstrapAdmin ile aynı olmalı (küçük harf).
+    function adminEmail() { return 'bariscemgezgin@gmail.com'; }
+
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function email() { return request.auth.token.email.lower(); }
+    function isMember() { return exists(/databases/$(database)/documents/members/$(email())); }
+    function role() { return get(/databases/$(database)/documents/members/$(email())).data.role; }
+    function isAdmin() { return signedIn() && (email() == adminEmail() || (isMember() && role() == 'admin')); }
+    function canRead() { return signedIn() && (isAdmin() || isMember()); }
+    function canWrite() { return signedIn() && (isAdmin() || (isMember() && role() == 'editor')); }
+
+    // Yalnızca yönetici tanımlı e-postaları ekler/siler; herkes kendi kaydını okuyabilir (giriş kontrolü için).
+    match /members/{memberEmail} {
+      allow read: if signedIn() && (isAdmin() || email() == memberEmail);
+      allow write: if isAdmin();
+    }
+
+    match /children/{childId} {
+      allow read: if canRead();
+      allow create, update: if canWrite();
+      allow delete: if isAdmin();
+
+      match /notes/{noteId} {
+        allow read: if canRead();
+        allow create: if canWrite() && request.resource.data.authorEmail == email();
+        allow update: if canWrite();
+        allow delete: if canWrite() && (resource.data.authorEmail == email() || isAdmin());
+      }
+    }
+  }
+}
