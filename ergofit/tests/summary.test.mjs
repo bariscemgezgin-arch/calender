@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { redact, buildPrompt } from './summary.js';
+import { redact, buildPrompt } from '../js/summary.js';
 
 test('ad ve ekleri gizlenir, benzer kelimeler korunur', () => {
   const r = redact("Ada'nın makas becerisi iyi. Adaya alışkanlık kazandırdık. Ada Test geldi.", 'Ada Test');

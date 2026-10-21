@@ -1,6 +1,6 @@
 // Yalnızca uygulama kabuğunu önbelleğe alır (çevrimdışı açılış). Çocuk verisi Firestore'un kendi şifreli yerel önbelleğinde durur.
 const CACHE = 'ergofit-shell-v1';
-const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/csv.js', 'js/backend-firebase.js', 'js/backend-demo.js', 'js/firebase-config.js', 'assets/logo.svg', 'manifest.webmanifest'];
+const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/csv.js', 'js/summary.js', 'js/backend-firebase.js', 'js/backend-demo.js', 'js/firebase-config.js', 'assets/logo.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(

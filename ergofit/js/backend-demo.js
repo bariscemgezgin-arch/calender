@@ -68,7 +68,7 @@ export const backend = {
     list.forEach(c => state.children.push({ id: 'c' + ++uid, createdAt: Date.now(), ...c, ...stamp() }));
     fire('children');
   },
-  async generateSummary(childId) {
+  async generateSummary(childId, input) {
     await new Promise(r => setTimeout(r, 600));
     const c = state.children.find(x => x.id === childId);
     const notes = state.notes[childId] || [];

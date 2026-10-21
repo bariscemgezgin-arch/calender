@@ -9,3 +9,6 @@ export const firebaseConfig = {
 
 // İlk yönetici. firestore.rules içindeki ADMIN_EMAIL ile aynı olmalı.
 export const bootstrapAdmin = 'bariscemgezgin@gmail.com';
+
+// Cloudflare Worker adresi (yapay zeka özeti için, README'ye bak). Örn. 'https://ergofit-ozet.KULLANICI.workers.dev'
+export const summaryEndpoint = '';

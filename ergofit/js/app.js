@@ -404,7 +404,11 @@ document.addEventListener('click', async e => {
   }
   else if (d.act === 'summarize') {
     const btn = el; btn.disabled = true; btn.textContent = 'Hazırlanıyor…';
-    await run(() => backend.generateSummary(id), 'Özet hazırlandı');
+    const c = S.children.find(x => x.id === id);
+    await run(() => backend.generateSummary(id, {
+      name: c.name, age: age(c.birth), focus: focusItems(c),
+      notes: S.notes.map(n => ({ text: n.text, date: n.createdAt ? new Date(n.createdAt).toISOString().slice(0, 10) : '' }))
+    }), 'Özet hazırlandı');
     btn.disabled = false; btn.textContent = 'Özeti yenile';
   }
   else if (d.act === 'signout') backend.signOut();

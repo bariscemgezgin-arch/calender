@@ -13,7 +13,7 @@ Ergoterapistlerin çocuk bilgilerini, "şu an çalışılanları", seans notlar�
 `js/firebase-config.js` boşken uygulama DEMO modunda açılır (sahte veri, kayıt tutulmaz):
 ```
 cd ergofit && python3 -m http.server 8000   # http://localhost:8000
-node --test tests/csv.test.mjs
+node --test tests/*.mjs
 ```
 
 ## Gerçek kullanım için Firebase kurulumu (~10 dk, ücretsiz katman yeter)
@@ -27,20 +27,22 @@ node --test tests/csv.test.mjs
 
 > `apiKey` gizli bir anahtar değildir; güvenlik `firestore.rules` ile sağlanır. Kuralları yayınlamadan gerçek veri girme.
 
-## Yapay zeka özeti kurulumu (Cloud Functions)
-Anahtar tarayıcıda değil sunucuda durur. Bunun için Firebase projesini **Blaze (kullandıkça öde)** planına al; bu kullanımda maliyet genelde çok düşüktür. Bilgisayarda Node 20 ve `npm i -g firebase-tools` gerekir:
-```
-cd ergofit
-firebase login
-firebase use --add                      # projeni seç
-firebase functions:secrets:set ANTHROPIC_API_KEY   # console.anthropic.com'dan aldığın anahtar
-(cd functions && npm install)
-firebase deploy --only functions,firestore:rules
-```
-- Fonksiyon `europe-west1`'de çalışır; model varsayılan `claude-sonnet-5-5` (`SUMMARY_MODEL` ile değiştirilebilir).
-- **Yapay zekaya giden veri**: yaş, çalışma listesi ve seans notları. Çocuğun adı, telefon, e-posta ve uzun rakam dizileri gönderilmez; not metninde çocuğun adı geçiyorsa "çocuk" ile değiştirilir. Veli bilgisi uygulamada hiç tutulmaz.
-- Özet alanlarını yalnızca sunucu yazar; `firestore.rules` istemciden değiştirmeyi engeller.
-- Yönetici e-postası `functions/index.js` içinde de var (`ADMIN_EMAIL`); rules ve config ile aynı olmalı.
+## Yapay zeka özeti kurulumu (tamamen ücretsiz, kart gerekmez)
+Özeti Google Gemini'nin ücretsiz katmanı üretir. Anahtar tarayıcıda değil, ücretsiz bir Cloudflare Worker'da durur; Worker yalnızca Firebase ile giriş yapmış, düzenleyici/yönetici rolündeki kişilerin isteğini kabul eder.
+1. https://aistudio.google.com/apikey → **Create API key** (Google hesabınla, kart yok). Anahtarı kopyala.
+2. https://dash.cloudflare.com → ücretsiz hesap aç → **Workers & Pages → Create → Hello World → Deploy → Edit code**; `worker/summary-worker.js` içeriğini yapıştırıp **Deploy**.
+3. Worker → **Settings → Variables and Secrets** altına ekle:
+   - `GEMINI_API_KEY` (tür: **Secret**) = 1. adımdaki anahtar
+   - `FIREBASE_PROJECT_ID` = Firebase proje kimliğin
+   - `BOOTSTRAP_ADMIN` = yönetici e-postan
+   - `ALLOWED_ORIGIN` = uygulamanın adresi, örn. `https://kullanici.github.io` (sonunda `/` ve yol olmadan)
+   - isteğe bağlı `GEMINI_MODEL` (varsayılan `gemini-2.5-flash`; Google modeli kaldırırsa AI Studio'daki güncel ücretsiz bir modelin adını yaz)
+4. Worker adresini (`https://....workers.dev`) `js/firebase-config.js` içindeki `summaryEndpoint`'e yapıştır.
+
+- **Yapay zekaya giden veri**: yaş, çalışma listesi ve seans notları. Çocuğun adı, telefon, e-posta ve uzun rakam dizileri tarayıcıda temizlenir; not metninde çocuğun adı geçiyorsa "çocuk" ile değiştirilir. Worker bu metni saklamaz.
+- **Önemli gizlilik notu**: Gemini'nin *ücretsiz* katmanında Google, gönderilen içeriği ürünlerini geliştirmek için kullanabilir ve insanlar inceleyebilir. İsimsiz de olsa notlar sağlık bilgisi içerir; bunu bilerek kullan. Ücretli katman bunu kapatır.
+- Ücretsiz kotanın dakikalık/günlük sınırı vardır; dolarsa "kota doldu, biraz sonra tekrar dene" uyarısı çıkar.
+- Özet alanlarını arayüz kilitler (kimse yazamaz); teknik olarak yetkili bir düzenleyici veritabanına doğrudan yazabilir, kapalı bir ekip uygulaması için bu kabul edildi.
 
 ## Bilinen sınırlar
 - Özet yapay zeka üretimidir; hata yapabilir, notlarda olmayanı yazmaması istenir ama aileye iletmeden önce okunmalı.

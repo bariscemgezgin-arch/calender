@@ -7,8 +7,8 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, deleteField,
   onSnapshot, query, orderBy, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, summaryEndpoint } from './firebase-config.js';
+import { buildPrompt } from './summary.js';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -16,7 +16,6 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 
-const fns = getFunctions(app, 'europe-west1');
 const ms = t => (t && t.toMillis ? t.toMillis() : null);
 const clean = (d, extra) => {
   const o = { ...d.data(), id: d.id, ...extra };
@@ -86,9 +85,21 @@ export const backend = {
     }
   },
 
-  async generateSummary(childId) {
-    try { await httpsCallable(fns, 'generateSummary')({ childId }); }
-    catch (e) { throw Object.assign(new Error(e.message), { code: e.code }); }
+  // input: { name, age, focus, notes }. Ad ve kişisel veriler istem hazırlanırken temizlenir; Worker'a yalnızca temizlenmiş metin gider.
+  async generateSummary(childId, input) {
+    if (!summaryEndpoint) throw new Error('Özet servisi kurulmamış (README: "Yapay zeka özeti").');
+    const { system, user, noteCount } = buildPrompt(input);
+    let res;
+    try {
+      res = await fetch(summaryEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+        body: JSON.stringify({ system, user })
+      });
+    } catch { throw new Error('Özet servisine ulaşılamadı.'); }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || 'Özet hazırlanamadı.');
+    await updateDoc(doc(db, 'children', childId), { summary: j.summary, summaryAt: serverTimestamp(), summaryBy: me().email, summaryNoteCount: noteCount });
   },
 
   watchNotes(childId, cb, err) {
